@@ -3,27 +3,40 @@
 import { useState } from "react";
 
 export default function Home() {
-  const [text, setText] = useState("");
-  const [loading, setLoading] = useState(false);
+  const [analysis, setAnalysis] = useState<unknown>(null);
+  const [status, setStatus] = useState("");
   const [error, setError] = useState("");
 
   async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    setLoading(true);
+    setStatus("Reading your resume...");
     setError("");
-    setText("");
+    setAnalysis(null);
 
     const formData = new FormData();
     formData.append("resume", file);
 
     const res = await fetch("/api/upload", { method: "POST", body: formData });
     const data = await res.json();
+    if (!res.ok) {
+      setError(data.error);
+      setStatus("");
+      return;
+    }
 
-    if (!res.ok) setError(data.error);
-    else setText(data.text);
-    setLoading(false);
+    setStatus("Analyzing with AI...");
+    const aRes = await fetch("/api/analyze", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text: data.text }),
+    });
+    const aData = await aRes.json();
+
+    if (!aRes.ok) setError(aData.error);
+    else setAnalysis(aData.analysis);
+    setStatus("");
   }
 
   return (
@@ -40,11 +53,11 @@ export default function Home() {
         className="mt-6 block"
       />
 
-      {loading && <p className="mt-4">Reading your resume...</p>}
+      {status && <p className="mt-4">{status}</p>}
       {error && <p className="mt-4 text-red-600">{error}</p>}
-      {text && (
+      {analysis !== null && (
         <pre className="mt-6 whitespace-pre-wrap rounded border p-4 text-sm">
-          {text}
+          {JSON.stringify(analysis, null, 2)}
         </pre>
       )}
     </main>
